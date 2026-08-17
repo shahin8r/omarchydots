@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+different=0
+
+diff_config() {
+  local source_root="$repo_dir/.config"
+  [[ -d $source_root ]] || return 0
+
+  while IFS= read -r -d '' stored_path; do
+    local relative_path=".config/${stored_path#"$source_root"/}"
+    local live_path="$HOME/$relative_path"
+    if [[ ! -f $live_path ]]; then
+      printf 'Missing locally: %s\n' "$relative_path"
+      different=1
+    elif ! cmp -s -- "$stored_path" "$live_path"; then
+      diff -u --label "repo/$relative_path" --label "live/$relative_path" "$stored_path" "$live_path" || true
+      different=1
+    fi
+  done < <(find "$source_root" -type f -print0 | sort -z)
+}
+
+diff_config
+
+if [[ $different -eq 0 ]]; then
+  printf 'Local configuration matches the repository.\n'
+fi

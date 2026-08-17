@@ -1,0 +1,6 @@
+# Paths are relative to $HOME. Keep this list intentionally small.
+.config/alacritty/alacritty.toml
+.config/hypr/bindings.lua
+.config/hypr/input.lua
+.config/hypr/looknfeel.lua
+.config/tmux/tmux.conf

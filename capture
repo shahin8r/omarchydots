@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+capture_file() {
+  local relative_path=$1
+  local destination_root=$2
+  local source_path="$HOME/$relative_path"
+  local destination_path="$destination_root/$relative_path"
+
+  if [[ -L $source_path ]]; then
+    printf 'Refusing to capture symlink: %s\n' "$source_path" >&2
+    return 1
+  fi
+  if [[ ! -f $source_path ]]; then
+    printf 'Missing, skipped: %s\n' "$source_path" >&2
+    return 0
+  fi
+
+  mkdir -p -- "$(dirname -- "$destination_path")"
+  cp -- "$source_path" "$destination_path"
+  printf 'Captured %s\n' "$relative_path"
+}
+
+while IFS= read -r relative_path; do
+  [[ -z $relative_path || $relative_path == \#* ]] && continue
+  capture_file "$relative_path" "$repo_dir"
+done < "$repo_dir/manifest"
+
+printf '\nRepository changes:\n'
+git -C "$repo_dir" status --short

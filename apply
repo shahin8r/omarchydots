@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+dry_run=false
+
+if [[ ${1:-} == "--dry-run" ]]; then
+  dry_run=true
+elif [[ $# -gt 0 ]]; then
+  printf 'Usage: %s [--dry-run]\n' "$0" >&2
+  exit 2
+fi
+
+timestamp=$(date +%Y%m%d-%H%M%S)
+backup_root="$HOME/.local/state/omarchydots/backups/$timestamp"
+changed=0
+
+apply_config() {
+  local source_root="$repo_dir/.config"
+  [[ -d $source_root ]] || return 0
+
+  while IFS= read -r -d '' source_path; do
+    local relative_path=".config/${source_path#"$source_root"/}"
+    local destination_path="$HOME/$relative_path"
+
+    if [[ -L $destination_path ]]; then
+      printf 'Refusing to replace symlink: %s\n' "$destination_path" >&2
+      exit 1
+    fi
+    if [[ -f $destination_path ]] && cmp -s -- "$source_path" "$destination_path"; then
+      printf 'Unchanged %s\n' "$relative_path"
+      continue
+    fi
+
+    changed=1
+    if $dry_run; then
+      printf 'Would apply %s\n' "$relative_path"
+      continue
+    fi
+
+    if [[ -f $destination_path ]]; then
+      mkdir -p -- "$backup_root/$(dirname -- "$relative_path")"
+      cp -- "$destination_path" "$backup_root/$relative_path"
+    fi
+    mkdir -p -- "$(dirname -- "$destination_path")"
+    cp -- "$source_path" "$destination_path"
+    printf 'Applied %s\n' "$relative_path"
+  done < <(find "$source_root" -type f -print0 | sort -z)
+}
+
+apply_config
+
+if [[ $changed -eq 0 ]]; then
+  printf '\nEverything is already up to date.\n'
+elif $dry_run; then
+  printf '\nDry run only; no files changed.\n'
+else
+  printf '\nPrevious versions were backed up under %s when applicable.\n' "$backup_root"
+  printf 'Restart or reload affected applications (for tmux: prefix then q).\n'
+fi
